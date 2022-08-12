@@ -97,8 +97,8 @@ def train():
             # # mseloss = nn.MSELoss()
             # # loss_l1 = mseloss(logits,depth)
             # loss_sharp = criterion['sharp'](logits.contiguous().view(B*FS, 1, H, W), depth.contiguous().view(B*FS, 1, H, W))
-            loss_recon = 0.3 * loss_ssim + 0.7 * loss_l1
-            loss_b = loss_recon * 0.7 + loss_sharp * 0.3
+            loss_recon = args.recon_loss_alpha * loss_ssim + (1 - args.recon_loss_alpha) * loss_l1
+            loss_b = loss_recon * args.recon_loss_lambda + loss_sharp * args.sharp_loss_lambda
             
             print(loss_ssim," ",loss_l1," ",loss_sharp)
             
