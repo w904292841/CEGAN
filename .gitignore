@@ -1,0 +1,7 @@
+*.png
+*.tif
+*.exr
+model/funet/
+image/train/
+image/eval/
+test.py
