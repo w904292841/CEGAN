@@ -23,7 +23,7 @@ class NYUDataset(Dataset):
         self.near = near
         self.far = far
 
-        self.aif_path = os.path.join(self.root_dir, f'{split}_rgb')
+        self.aif_path = os.path.join(self.root_dir, f'{split}_fs5')
         self.dpt_path = os.path.join(self.root_dir, f'{split}_depth')
         if self.norm:
             self.all_path = os.path.join(self.root_dir, f'{split}_fs5')
@@ -64,7 +64,7 @@ class NYUDataset(Dataset):
         mats_output = []
 
         for i in sub_idx:
-            img_all = cv2.imread(os.path.join(self.all_path, self.imglist_all[img_idx + i])) / 255.
+            img_all = cv2.imread(os.path.join(self.all_path, self.imglist_all[img_idx + i]))
             mat_all = img_all.copy().astype(np.float32)
             if i in output_idx:    
                 mats_output.append(torch.from_numpy(mat_all.transpose((2, 0, 1))).unsqueeze(0))

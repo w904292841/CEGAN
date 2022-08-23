@@ -124,7 +124,8 @@ class ImageDataset(torch.utils.data.Dataset):
         idx_dpt = int(idx)
         img_dpt = read_dpt(self.root_dir + self.imglist_dpt[idx_dpt])
         img_dpt = np.clip(img_dpt, 0., self.max_dpt)
-        mat_dpt = img_dpt / self.max_dpt
+        # mat_dpt = img_dpt / self.max_dpt
+        mat_dpt = img_dpt
 
         mat_dpt = mat_dpt.copy()[:, :, np.newaxis]
 
@@ -146,7 +147,7 @@ class ImageDataset(torch.utils.data.Dataset):
             if self.flag_rgb:
                 im = Image.open(self.root_dir + self.imglist_all[ind + num_list[i]])
                 img_all = np.array(im)
-                mat_all += [np.expand_dims(img_all.copy() / 255., axis = 0)]
+                mat_all += [np.expand_dims(img_all.copy(), axis = 0)]
             mats_input = np.concatenate(mat_all, axis=0)
 
             if self.flag_coc or self.flag_out_coc:
