@@ -75,9 +75,9 @@ def train():
             
             # logits,cstack_loss_ssim,cstack_loss_l1 = model(image,focal_length,focus_dist,f_number,pixel_size)
 
-            logits = model(image,focal_length,focus_dist,f_number,pixel_size)
+            logits,cstack_loss_l1 = model(image,focal_length,f_number,pixel_size)
 
-            logits = model(image,focal_length)
+            # logits = model(image,focal_length)
             
             # print(logits)
             # exit()
@@ -108,7 +108,7 @@ def train():
             # loss_sharp = criterion['sharp'](logits.contiguous().view(B*FS, C, H, W), sigma.contiguous().view(B*FS, C, H, W))
             
             loss_ssim = 1 - criterion['ssim'](logits, depth)
-            loss_l1 = criterion['l1'](logits, depth)
+            loss_l1 = cstack_loss_l1 * args.cstack_loss_beta + criterion['l1'](logits, depth) * (1 - args.cstack_loss_beta)
             
             # loss_ssim = args.cstack_loss_beta*cstack_loss_ssim + (1-args.cstack_loss_beta)*depth_loss_ssim
             # loss_l1 = args.cstack_loss_beta*cstack_loss_l1 + (1-args.cstack_loss_beta)*depth_loss_l1
@@ -139,9 +139,9 @@ def train():
             lowest_loss = loss_e
             print("epochs:",e+1," finished,average loss:",loss_e)
             dirc = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            os.mkdir(args.img_save_dir+'train_cat/'+dirc)
-            os.mkdir(args.model_dir+dirc+"_cat")
-            torch.save(model.state_dict(),args.model_dir+dirc+"_cat"+"/model_{0:4f}.bin".format(loss_e)) 
+            os.mkdir(args.img_save_dir+'train_cstack/'+dirc)
+            os.mkdir(args.model_dir+dirc+"_cstack")
+            torch.save(model.state_dict(),args.model_dir+dirc+"_cstack"+"/model_{0:4f}.bin".format(loss_e)) 
         
         # rgb_d = fda.cal_d(logits[0],focal_length,focus_dist[0],f_number,pixel_size)
         # pre_d = torch.sum(fda.cmp(rgb_d[:,0],rgb_d[:,1],rgb_d[:,2]),1)/3
@@ -150,9 +150,9 @@ def train():
         # torchvision.utils.save_image(depth[0][0].to('cpu'),args.img_save_dir+"train/"+str(dirc)+"/d_"+str(i)+".png")
         # [torchvision.utils.save_image(logits[0][j].to('cpu').detach(),args.img_save_dir+"train/"+str(dirc)+"/pd_{0}_".format(j)+str(i)+".png") for j in range(logits.shape[1])]
             image = image[:,:,:-1]
-            [unloader(image[0][j]).save(args.img_save_dir+"train_cat/"+dirc+"/i_{0}_".format(j)+str(i)+".png") for j in range(image.shape[1])]
-            unloader(depth[0][0].to('cpu')).save(args.img_save_dir+"train_cat/"+dirc+"/d_"+str(i)+".png")
-            [unloader(logits[0][j].to('cpu').detach()).save(args.img_save_dir+"train_cat/"+dirc+"/pd_{0}_".format(j)+str(i)+".png") for j in range(logits.shape[1])]
+            [unloader(image[0][j]).save(args.img_save_dir+"train_cstack/"+dirc+"/i_{0}_".format(j)+str(i)+".png") for j in range(image.shape[1])]
+            unloader(depth[0][0].to('cpu')).save(args.img_save_dir+"train_cstack/"+dirc+"/d_"+str(i)+".png")
+            [unloader(logits[0][j].to('cpu').detach()).save(args.img_save_dir+"train_cstack/"+dirc+"/pd_{0}_".format(j)+str(i)+".png") for j in range(logits.shape[1])]
        
         # [unloader(image[0][j]).save(args.img_save_dir+"train/"+str(dirc)+"/i_{0}_".format(j)+str(i)+".png") for j in range(image.shape[1])]
         # unloader(depth[0][0].to('cpu')).save(args.img_save_dir+"train/"+str(dirc)+"/d_"+str(i)+".png")

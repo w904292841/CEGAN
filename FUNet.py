@@ -3,6 +3,10 @@ import torch.nn as nn
 import torch.utils.data
 from torch.nn import functional as F
 import cal_Fda as fda
+from utils import *
+
+parser = get_parser()
+args = parser.parse_args()
 
 class FUNet(nn.Module):
     def __init__(self, input_ch, output_ch, W=16, D=4):
@@ -64,7 +68,7 @@ class FUNet(nn.Module):
         diver_y = self.gradient_y(self.gradient_y(inp))
         return diver_x**2+diver_y**2
     
-    def forward(self, x, focal_length):
+    def forward(self, x, focal_length, f_number=None, pixel_size=None):
         Na_yellow = 0.589
         col = torch.tensor([0.66,0.55,0.44]).cuda()
         B, FS, C, H, W = x.shape
@@ -113,6 +117,26 @@ class FUNet(nn.Module):
             skip_h = h_s.pop(-1)
             h = self.conv_joint[i](torch.cat([h, skip_h], dim=1))
         
-        output = self.conv_out(h).view(B, FS*(C-1), *h.shape[-2:])
+        # output = self.conv_out(h).view(B,FS*(C-1), *h.shape[-2:])
         
-        return output
+        sigma = self.conv_out(h).view(B*FS, C-1, *h.shape[-2:])
+        
+        d_tuple = fda.cal_d(sigma=sigma,f=focal_length,F=focus_dist.view(B*FS,C-1,H,W),n=f_number,p=pixel_size)
+        
+        rgb_d = fda.cmp(d_tuple[:,0,:,:],d_tuple[:,1,:,:],d_tuple[:,2,:,:])
+        
+        recon_sigma = fda.eval_sigma(sigma,rgb_d,col,focal_length,focus_dist.view(B*FS,C-1,H,W),f_number,pixel_size)
+        
+        
+        criterion = dict(l1=BlurMetric('l1'), smooth=BlurMetric('smooth', beta=args.sm_loss_beta), sharp=BlurMetric('sharp'), 
+                    ssim=BlurMetric('ssim'), blur=BlurMetric('blur', sigma=args.blur_loss_sigma, kernel_size=args.blur_loss_window))
+        
+        loss_l1 = 0
+        for i in range(C-1):
+            loss_l1 += criterion['l1'](recon_sigma[:,:,i],sigma[:,i].unsqueeze(1).expand(B*FS,C-1,*recon_sigma.shape[-2:]))
+        loss_l1 /= C-1
+        
+        output = rgb_d.view(B,FS*(C-1),H,W)
+        
+        return output,loss_l1
+        # return output
