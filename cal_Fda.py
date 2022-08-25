@@ -12,7 +12,7 @@ def cal_n(l):
     # print(l)
     # print(A1*l**2/(l**2-B1)+A2*l**2/(l**2-B2)+A3*l**2/(l**2-B3)+1)
     # exit()
-    n = torch.sqrt(torch.tensor(A1*l**2/(l**2-B1)+A2*l**2/(l**2-B2)+A3*l**2/(l**2-B3)+1))
+    n = torch.sqrt(A1*l**2/(l**2-B1)+A2*l**2/(l**2-B2)+A3*l**2/(l**2-B3)+torch.tensor(1))
     return n
 
 def cal_r(l,f):
@@ -101,21 +101,21 @@ def cal_sigma(d,f,F,n=None,p=None,l=None):
     
     if l is None:
         l = [0.66,0.55,0.44]
-    l = torch.tensor(l).unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).cuda()
+    l = torch.tensor(l).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).cuda()
     l = l.expand_as(d)
     if not n:
         n = [2.8]
-    n=torch.tensor(n).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
+    n=torch.tensor(n).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
     n = n.expand_as(d)
     
-    r = torch.tensor(r).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
+    r = torch.tensor(r).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
     r = r.expand_as(d)
     
-    di = torch.tensor(di).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
+    di = torch.tensor(di).cuda()
     di = di.expand_as(d)
     if not p:
         p = [9e-6]
-    p = torch.tensor(p).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
+    p = torch.tensor(p).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).cuda()
     p = p.expand_as(d)
 
     N2 = 1 + A1*l**2/(l**2-B1)+A2*l**2/(l**2-B2)+A3*l**2/(l**2-B3)

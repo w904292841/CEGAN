@@ -6,7 +6,7 @@ from PIL import Image
 import cv2
 
 class NYUDataset(Dataset):
-    def __init__(self, root_dir, split='train', shuffle=False, img_num=1, visible_img=1, focus_dist=[0.1,.15,.3,0.7,1.5], recon_all=True, 
+    def __init__(self, root_dir, split='train', local_rank=-1, shuffle=False, img_num=1, visible_img=1, focus_dist=[0.1,.15,.3,0.7,1.5], recon_all=True, 
                     RGBFD=False, DPT=False, AIF=False, scale=2, norm=False, near=0.1, far=1., trans=False):
         self.root_dir = root_dir
         self.shuffle = shuffle
@@ -39,7 +39,7 @@ class NYUDataset(Dataset):
         self.imglist_aif = [f for f in os.listdir(self.aif_path) if os.path.isfile(os.path.join(self.aif_path, f))]
 
         self.n_stack = len(self.imglist_aif)
-        if split == 'train':
+        if split == 'train' and local_rank <= 0:
             print(f"{self.visible_img} out of {self.img_num} images per sample are visible for input")
         self.imglist_all.sort()
         self.imglist_dpt.sort()

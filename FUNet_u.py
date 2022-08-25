@@ -9,8 +9,6 @@ from PIL import Image
 import torchvision
 # from loss import BlurMetric
 
-parser = get_parser()
-args = parser.parse_args()
 unloader = torchvision.transforms.ToPILImage()
 
 class FUNet(nn.Module):

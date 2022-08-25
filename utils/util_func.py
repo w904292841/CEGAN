@@ -3,7 +3,7 @@ import torch
 from .dataset import *
 from torch.nn import functional as F
 
-def load_data(dataset_config, dataset, BS, n_shot=-1, indices=None):
+def load_data(dataset_config, dataset, BS, local_rank, n_shot=-1, indices=None):
     if dataset == 'NYU100':
         train_dl, valid_dl, test_dl = _load_NYU_data(dataset_config, BS, NYU100=True)
     elif dataset == 'DSLR':
@@ -14,18 +14,18 @@ def load_data(dataset_config, dataset, BS, n_shot=-1, indices=None):
         train_dl, valid_dl, test_dl = _load_mDFD_data(dataset_config, BS, n_shot=n_shot, sel_indices=indices)
     else:
         # train_dl = _load_NYU_data(dataset_config, BS)
-        train_dl, valid_dl, test_dl = _load_NYU_data(dataset_config, BS)
+        train_dl, valid_dl, test_dl = _load_NYU_data(dataset_config, BS, local_rank)
     # return train_dl
     return train_dl, valid_dl, test_dl
 
-def _load_NYU_data(dataset_config, BS, num_workers=8, dataset_shuffle=True, valid_split=0.2, NYU100 = False):
+def _load_NYU_data(dataset_config, BS, local_rank, num_workers=8, dataset_shuffle=True, valid_split=0.2, NYU100 = False):
     if NYU100:
         dataset = NYUFS100Dataset
     else:
         dataset = NYUDataset
     
-    dataset_train = dataset(**dataset_config, split='train')
-    dataset_valid = dataset(**dataset_config, split='test')
+    dataset_train = dataset(**dataset_config, split='train', local_rank=local_rank)
+    dataset_valid = dataset(**dataset_config, split='test', local_rank=local_rank)
 
     indices = np.arange(len(dataset_valid))
     split = int(len(dataset_valid) * (1 - valid_split))
@@ -34,14 +34,23 @@ def _load_NYU_data(dataset_config, BS, num_workers=8, dataset_shuffle=True, vali
 
     dataset_test = torch.utils.data.Subset(dataset_valid, indices_test)
     dataset_valid = torch.utils.data.Subset(dataset_valid, indices_valid)
+    
+    # train_sampler = torch.utils.data.distributed.DistributedSampler(dataset_train)
+    # valid_sampler = torch.utils.data.distributed.DistributedSampler(dataset_valid)
+    # test_sampler = torch.utils.data.distributed.DistributedSampler(dataset_test)
+    
+    # loader_train = torch.utils.data.DataLoader(dataset=dataset_train, num_workers=num_workers, batch_size=BS, pin_memory=True, drop_last=True,sampler=train_sampler)
+    # loader_valid = torch.utils.data.DataLoader(dataset=dataset_valid, num_workers=num_workers, batch_size=BS, shuffle=False, pin_memory=True,sampler=valid_sampler)
+    # loader_test = torch.utils.data.DataLoader(dataset=dataset_test, num_workers=1, batch_size=1, shuffle=False, pin_memory=True,sampler=test_sampler)
 
-    loader_train = torch.utils.data.DataLoader(dataset=dataset_train, num_workers=num_workers, batch_size=BS, shuffle=dataset_shuffle, pin_memory=True, drop_last=True)
+    loader_train = torch.utils.data.DataLoader(dataset=dataset_train, num_workers=num_workers, batch_size=BS, shuffle=True, pin_memory=True, drop_last=True)
     loader_valid = torch.utils.data.DataLoader(dataset=dataset_valid, num_workers=num_workers, batch_size=BS, shuffle=False, pin_memory=True)
     loader_test = torch.utils.data.DataLoader(dataset=dataset_test, num_workers=1, batch_size=1, shuffle=False, pin_memory=True)
 
-    print("Total number of training sample:", len(dataset_train))
-    print("Total number of validation sample:", len(indices_valid))
-    print("Total number of testing sample:", len(indices_test))
+    if local_rank == 0:
+        print("Total number of training sample:", len(dataset_train))
+        print("Total number of validation sample:", len(indices_valid))
+        print("Total number of testing sample:", len(indices_test))
 
     return loader_train, loader_valid, loader_test
     # return loader_train

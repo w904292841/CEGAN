@@ -5,29 +5,26 @@ from torch.nn import functional as F
 import cal_Fda as fda
 from utils import *
 
-parser = get_parser()
-args = parser.parse_args()
-
 class FUNet(nn.Module):
     def __init__(self, input_ch, output_ch, W=16, D=4):
         super(FUNet, self).__init__()
         self.conv_down1 = nn.ModuleList([self.convblock(input_ch, W, 1)] + [self.convblock(W * (3**i), W * (3**i), 1) for i in range(1, D)])
         self.conv_down3 = nn.ModuleList([self.convblock(input_ch, W, 3)] + [self.convblock(W * (3**i), W * (3**i), 3) for i in range(1, D)])
         self.conv_down5 = nn.ModuleList([self.convblock(input_ch, W, 5)] + [self.convblock(W * (3**i), W * (3**i), 5) for i in range(1, D)])
-        self.conv_weight = nn.ModuleList([
-                nn.Conv2d(input_ch, 1, kernel_size=1)] + [nn.Conv2d(W * (3**i), 1, kernel_size=1) for i in range(1, D)])
+        # self.conv_weight = nn.ModuleList([
+        #         nn.Conv2d(input_ch, 1, kernel_size=1)] + [nn.Conv2d(W * (3**i), 1, kernel_size=1) for i in range(1, D)])
         self.bottleneck = nn.Sequential(
             nn.Conv2d(W * (3**D), W * (3**D), kernel_size=1, stride=1, padding=0,padding_mode='replicate'),
             nn.ReLU(),
         )
-        self.bottleneck_weight = nn.Sequential(
-            nn.Conv2d(W * (2**D), 1, kernel_size=1),
-            nn.ReLU(),
-        )
-        self.conv_up1 = nn.ModuleList([self.upconvblock(W * (3**i), W * (3**i), 1) for i in range(D, 0, -1)])
-        self.conv_up3 = nn.ModuleList([self.upconvblock(W * (3**i), W * (3**i), 3) for i in range(D, 0, -1)])
-        self.conv_up5 = nn.ModuleList([self.upconvblock(W * (3**i), W * (3**i), 5) for i in range(D, 0, -1)])
-        self.conv_joint = nn.ModuleList([self.convblock(W * (3**i)*2, W * (3**i // 3), 1) for i in range(D, 0, -1)])
+        # self.bottleneck_weight = nn.Sequential(
+        #     nn.Conv2d(W * (2**D), 1, kernel_size=1),
+        #     nn.ReLU(),
+        # )
+        self.conv_up1 = nn.ModuleList([self.upconvblock(W * (3**i), W * (3**i)//3, 1) for i in range(D, 0, -1)])
+        # self.conv_up3 = nn.ModuleList([self.upconvblock(W * (3**i), W * (3**i), 3) for i in range(D, 0, -1)])
+        # self.conv_up5 = nn.ModuleList([self.upconvblock(W * (3**i), W * (3**i), 5) for i in range(D, 0, -1)])
+        self.conv_joint = nn.ModuleList([self.convblock(W * (3**i) * 2 // 3, W * (3**i) // 3, 1) for i in range(D, 0, -1)])
 
         self.conv_out = nn.Sequential(
             nn.Conv2d(W, W, kernel_size=1, stride=1, padding=0,padding_mode='replicate'),
@@ -68,7 +65,7 @@ class FUNet(nn.Module):
         diver_y = self.gradient_y(self.gradient_y(inp))
         return diver_x**2+diver_y**2
     
-    def forward(self, x, focal_length, f_number=None, pixel_size=None):
+    def forward(self, x, focal_length, f_number=None, pixel_size=None, depth=None):
         Na_yellow = 0.589
         col = torch.tensor([0.66,0.55,0.44]).cuda()
         B, FS, C, H, W = x.shape
@@ -88,8 +85,8 @@ class FUNet(nn.Module):
         diver = self.diver(h)
         # unloader(grad[0].to('cpu')).save("sample_grad.png")
         # exit()
-        grad_x, grad_y, diver = F.normalize(grad_x,p=2,dim=0, eps=1e-12), F.normalize(grad_y,p=2,dim=0, eps=1e-12), F.normalize(diver,p=2,dim=0, eps=1e-12)
-        h = torch.cat((h,grad_x,grad_y,diver,Fd),1)
+        grad_x, grad_y, diver = F.normalize(grad_x,p=2,dim=0, eps=99991e-12), F.normalize(grad_y,p=2,dim=0, eps=1e-12), F.normalize(diver,p=2,dim=0, eps=1e-12)
+        h = torch.cat((h,grad_x,grad_y,diver),1)
         
         h_s = []
         for i, l in enumerate(self.conv_down1):
@@ -99,7 +96,7 @@ class FUNet(nn.Module):
             h3 = self.conv_down5[i](h) # BxFS C H/2**i W/2**i
             h = torch.cat([h1,h2,h3], dim=1)
             # w_h = h.view(B*FS, (C-1), *h.shape[-3:]) # B FS C H/2**i W/2**i
-            h_s.append(h.clone()) # B C H/2**i W/2**i
+            h_s.append(h1.clone()) # B C H/2**i W/2**i
             h = F.max_pool2d(h, kernel_size=2, stride=2, padding=0) # BxFS C H/2**(i+1) W/2**(i+1)
             # pool_h = F.max_pool2d(h, kernel_size=2, stride=2, padding=0) # BxFS C H/2**(i+1) W/2**(i+1)
             # h_s.append(torch.max(w_h, dim=1)[0]) # B C H/2**i W/2**i
@@ -117,26 +114,29 @@ class FUNet(nn.Module):
             skip_h = h_s.pop(-1)
             h = self.conv_joint[i](torch.cat([h, skip_h], dim=1))
         
-        # output = self.conv_out(h).view(B,FS*(C-1), *h.shape[-2:])
+        output = self.conv_out(h).view(B,FS*(C-1), *h.shape[-2:])
         
-        sigma = self.conv_out(h).view(B*FS, C-1, *h.shape[-2:])
+        # sigma = self.conv_out(h).view(B*FS, C-1, *h.shape[-2:])
         
-        d_tuple = fda.cal_d(sigma=sigma,f=focal_length,F=focus_dist.view(B*FS,C-1,H,W),n=f_number,p=pixel_size)
+        # d_tuple = fda.cal_d(sigma=sigma,f=focal_length,F=focus_dist.view(B*FS,C-1,H,W),n=f_number,p=pixel_size)
         
-        rgb_d = fda.cmp(d_tuple[:,0,:,:],d_tuple[:,1,:,:],d_tuple[:,2,:,:])
+        # rgb_d = fda.cmp(d_tuple[:,0,:,:],d_tuple[:,1,:,:],d_tuple[:,2,:,:])
         
-        recon_sigma = fda.eval_sigma(sigma,rgb_d,col,focal_length,focus_dist.view(B*FS,C-1,H,W),f_number,pixel_size)
+        # recon_sigma = fda.eval_sigma(sigma,rgb_d,col,focal_length,focus_dist.view(B*FS,C-1,H,W),f_number,pixel_size)
         
         
-        criterion = dict(l1=BlurMetric('l1'), smooth=BlurMetric('smooth', beta=args.sm_loss_beta), sharp=BlurMetric('sharp'), 
-                    ssim=BlurMetric('ssim'), blur=BlurMetric('blur', sigma=args.blur_loss_sigma, kernel_size=args.blur_loss_window))
+        # criterion = dict(l1=BlurMetric('l1'), smooth=BlurMetric('smooth', beta=args.sm_loss_beta), sharp=BlurMetric('sharp'), 
+        #             ssim=BlurMetric('ssim'), blur=BlurMetric('blur', sigma=args.blur_loss_sigma, kernel_size=args.blur_loss_window))
         
-        loss_l1 = 0
-        for i in range(C-1):
-            loss_l1 += criterion['l1'](recon_sigma[:,:,i],sigma[:,i].unsqueeze(1).expand(B*FS,C-1,*recon_sigma.shape[-2:]))
-        loss_l1 /= C-1
+        # loss_l1 = 0
+        # for i in range(C-1):
+        #     loss_l1 += criterion['l1'](recon_sigma[:,:,i],sigma[:,i].unsqueeze(1).expand(B*FS,C-1,*recon_sigma.shape[-2:]))
+        # loss_l1 /= (C-1)*(C-2)
         
-        output = rgb_d.view(B,FS*(C-1),H,W)
+        # output = rgb_d.view(B,FS*(C-1),H,W)
         
-        return output,loss_l1
-        # return output
+        # depth = depth.expand_as(output).contiguous().view(B*FS,C-1,H,W)
+        # sigma_gt = fda.cal_sigma(depth,focal_length,focus_dist.view(B*FS,C-1,H,W),f_number,pixel_size)
+        
+        # return sigma,sigma_gt,output,loss_l1
+        return output

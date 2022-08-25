@@ -25,9 +25,9 @@ def get_parser():
     parser.add_argument('--wd', type=float, default=5e-4)
     parser.add_argument('--BS', '-B', type=int, default=8)
     parser.add_argument('--epochs', '-E', type=int, default=2000)
-    parser.add_argument('-W', type=int, default=10)
-    parser.add_argument('-D', type=int, default=3)
-    parser.add_argument('-input_channels', type=int, default=5)
+    parser.add_argument('-W', type=int, default=16)
+    parser.add_argument('-D', type=int, default=4)
+    parser.add_argument('-input_channels', type=int, default=4)
     parser.add_argument('-output_channels', type=int, default=1)
     parser.add_argument('-model_dir', type=str, default='./model/funet/')
 
@@ -49,6 +49,8 @@ def get_parser():
     parser.add_argument('--continue_from', type=str, default=None)
     # parser.add_argument('--eval_from_load', type=str, default='/mnt/petrelfs/fapinzhe/CEGAN/model/funet/2022-08-19-11-50-29_fs/model_0.157524.bin')
     parser.add_argument('--eval_from_load', type=str, default='/mnt/petrelfs/fapinzhe/CEGAN/model/funet/2022-08-23-01-21-20/model_0.296206.bin')
+    parser.add_argument('--local_rank', default=-1, type=int, help='node rank for distributed training')
+    parser.add_argument('--rank', default=0, type=int, help=' ')
 
 
     parser.add_argument('--eval', action='store_true', default=False)
@@ -86,3 +88,6 @@ def get_parser():
 
     return parser
 
+
+parser = get_parser()
+args = parser.parse_args()
